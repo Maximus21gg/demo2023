@@ -1,0 +1,61 @@
+1) После адресации
+
+  WEB-L  ping 192.168.200.200
+
+  RTR-L  ping 192.168.200.100
+         ping  192.168.200.200
+         ping 4.4.4.1
+
+  ISP    ping 3.3.3.10
+
+  RTR-R  ping 5.5.5.1
+         ping 192.168.100.100
+
+2) После настройки --add-source=172.16.100.0/24
+
+  WEB-R - ping 3.3.3.1
+  WEB-L - ping 3.3.3.1
+  ISP  -  ping 192.168.200.100 - Сеть недоступна
+
+3) После конфигруции туннеля до маршрутизации
+
+  RTR-R - ping 13.13.13.2
+
+4) После маршрутизации
+
+  WEB-L - ping 172.16.100.100 
+
+5) После SSH b проброса портов
+
+  CLI - ssh -l root -p 2244 4.4.4.100
+        ssh -l root -p 2222 4.4.4.100
+
+
+6) После настройки DNS на SRV и дописывания dns и поиск домена
+
+  WEB-L - nslookup web-l.int.demo.wsr
+          nslookup web-l
+
+  RTR-L - nslookup web-l.int.demo.wsr
+          nslookup web-l
+
+  WEB-R - nslookup web-l.int.demo.wsr
+          nslookup web-l
+          
+  RTR-R - nslookup web-l.int.demo.wsr
+          nslookup web-l
+          ping 192.168.200.100
+
+7) После настройки DNS на ISP
+
+  CLI - nslookup www.demo.wsr 
+        nslookup isp.demo.wsr
+        nslookup web-l.int.demo.wsr
+        nslookup dns.int.demo.wsr
+        nslookup ntp.demo.wsr
+
+  WEB-L - nslookup internet.demo.wsr
+          nslookup www.demo.wsr
+
+  WEB-R - nslookup www.demo.wsr
+

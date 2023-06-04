@@ -1,0 +1,729 @@
+Сегменты 
+
+WEB-L - LEFT
+SRV - LEFT
+RTR-L - LEFT, EXTERNAL-L
+ISP - EXTERNAL-L, INTERNET, EXTERNAL-R 
+CLI - INTERNET
+RTR-R - RIGHT, EXTERNAL-R 
+WEB-R - RIGHT
+
+1) Адресация
+
+  a) WEB-L
+  IP - 192.168.200.100/24
+  GATEWAY - 192.168.200.254
+
+  b) SRV 
+  IP - 192.168.200.200
+  GATEWAY 192.168.200.254
+
+  Включить правила в firewall - общий доступ к файлам и принтерам - ICMPv4
+
+  c) RTR-L
+     LEFT 
+     IP - 192.168.200.254/24
+
+     EXTERNAL-L 
+     IP - 4.4.4.100/24
+     GATEWAY - 4.4.4.1 
+
+  d) ISP
+     EXTERNAL-L 
+     IP - 4.4.4.1/24
+
+     INTERNET
+     IP - 3.3.3.1/24
+
+     EXTERNAL-R 
+     IP - 5.5.5.1/24
+
+  e) CLI 
+     IP - 3.3.3.10/24
+     GATEWAY 3.3.3.1
+
+  Включить правила в firewall - общий доступ к файлам и принтерам - ICMPv4 
+
+  e) RTR-R 
+     EXTERNAL-R 
+     IP - 5.5.5.100/24
+     GATEWAY - 5.5.5.1
+
+     RIGHT
+     IP - 172.16.100.254
+
+  f) WEB-R 
+     IP - 172.16.100.100/24
+     GATEWAY - 172.16.100.254
+
+
+2) Firewall
+
+  a) RTR-R 
+
+  apt install firewalld -y
+
+  firewall-cmd --get-active-zones
+
+  ip a 
+
+  firewall-cmd --permanent --zone=trusted --add-interface=ens** (172.16.100.254)
+
+  firewall-cmd --permanent --add-masquerade
+
+  systemctl restart firewalld
+  systemctl enable firewalld
+
+  b) RTR-L 
+
+  apt install firewalld -y
+
+  firewall-cmd --get-active-zones
+
+  ip a 
+
+  firewall-cmd --permanent --zone=trusted --add-interface=ens** (192.168.200.254)
+
+  firewall-cmd --list-all
+
+  firewall-cmd --permanent --add-masquerade
+
+  systemctl restart firewalld
+  systemctl enable firewalld
+
+  Перезапуск всех линукс
+
+
+a-1) RTR-L
+
+  firewall-cmd --permanent --add-service=dns
+  firewall-cmd --permanent --add-service=http
+  firewall-cmd --permanent --add-service=https
+  firewall-cmd --permanent --add-service=gre
+  firewall-cmd --permanent --remove-service=dhcpv6-client
+
+  firewall-cmd --permanent --zone=trusted --add-source=192.168.200.0/24
+
+
+a-2) RTR-R 
+
+  firewall-cmd --permanent --add-service=http
+  firewall-cmd --permanent --add-service=https
+  firewall-cmd --permanent --add-service=gre
+  firewall-cmd --permanent --remove-service=dhcpv6-client
+
+  firewall-cmd --permanent --zone=trusted --add-source=172.16.100.0/24
+
+  systemctl restart firewalld
+
+
+
+3) Туннель GRE 
+
+a) RTR-L 
+
+  nmtui - добавить - Туннель IP
+
+  Имя профиля - link RTR-R 
+  Устройство Tunnel1
+  Режим - GRE
+  Локальный IP - 4.4.4.100
+  Удалённый IP - 5.5.5.100
+  
+  IPv4 - вручную - показать
+  IP - 13.13.13.1/30
+
+b) RTR-R
+
+  nmtui - добавить - Туннель IP
+
+  Имя профиля - link RTR-L 
+  Устройство Tunnel1
+  Режим - GRE
+  Локальный IP - 5.5.5.100
+  Удалённый IP - 4.4.4.100
+  
+  IPv4 - вручную - показать
+  IP - 13.13.13.2/30
+
+
+c) ISP 
+
+  nano /etc/sysctl.conf
+  #net.ipv4.ip_forward=1 Раскомментировать
+  systemctl restart networking
+
+  Перезагрузить машины
+
+d) RTR-L
+
+  firewall-cmd --permanent --zone=trusted --add-interface=Tunnel1
+
+  systemctl restart firewalld
+
+e) RTR-R 
+
+  firewall-cmd --permanent --zone=trusted --add-interface=Tunnel1
+
+  systemctl restart firewalld
+
+
+4) Маршрутизация
+
+  а) RTR-L 
+
+  Туннель - Маршрутизация
+
+  Назначение - 172.16.100.0/24
+  Следующий переход - 13.13.13.2
+  Метрика - 1
+
+  b) RTR-R 
+
+  Туннель - Маршрутизация
+
+  Назначение - 192.168.200.0/24
+  Следующий переход - 13.13.13.1
+  Метрика - 1
+
+
+
+5) Настройка SSH
+
+  a) WEB-L, WEB-R
+
+  nano /etc/ssh/sshd_config 
+  #PermitRootLogin yes - Раскомментировать и написать после равно yes
+  systemctl restart sshd
+
+
+  b) RTR-L 
+
+  firewall-cmd --permanent --add-forward-port=port=2244:proto=tcp:toport=2244:toaddr=192.168.200.100
+  systemctl restart firewalld
+
+  firewall-cmd --permanent --add-forward-port=port=2222:proto=tcp:toport=2222:toaddr=5.5.5.100
+  systemctl restart firewalld
+
+  b) RTR-R
+
+  firewall-cmd --permanent --add-forward-port=port=2222:proto=tcp:toport=22:toaddr=172.16.100.100
+  systemctl restart firewalld
+
+6) DNS 
+
+  a) SRV 
+
+  Управление - Добавить роли и компоненты - DNS
+
+  В Powershell:
+
+  slmgr -rearm
+
+  Слева DNS - Диспетчер DNS - SRV - Зона прямого просмотра
+
+  Создать прямую зону
+
+  Имя зоны - int.demo.wsr
+  Разрешить динамические обновления
+
+
+  Создать обратные зоны
+
+  Первая зона - 192.168.200
+  Вторая зона - 172.16.100
+  Разрешить динамические обновления
+
+  Далее папка зоны прямого просмотра - папка int.demo.wsr - создаем записи 
+
+  Создать узлы А - нажать галочку создать PRT-запись
+
+  web-l - 192.168.200.100
+  web-r - 172.16.100.100
+  srv - 192.168.200.200
+  rtr-l - 192.168.200.254
+  rtr-r - 172.16.100.254
+
+  Создать узлы CNAME - обзор - SRV - зоны прямого - int.demo.wsr - нужная запись
+
+  webapp - web-l
+  webappr - web-r 
+  ntp - srv
+  dns - srv
+
+  Указать на адптере SRV 192.168.200.200 (свой же IP)
+
+  Делаем сервер пересылок - SRV - Серверы пересылок - Изменить - 3.3.3.1
+
+  В Powershell:
+  Сбросить кэш командой ipconfig /flushdns
+
+  Перезапустить SRV 
+
+  a-1) WEB-l, WEB-R, RTR-L, RTR-L в адаптерах Left и Right написать:
+
+  dns - 192.168.200.200 (IP SRV)
+  Поиск доменов - int.demo.wsr
+
+
+  b) ISP
+
+  apt install bind9
+
+  cd /etc/bind/
+  ls 
+
+  cp /etc/bind/db.local /etc/bind/demo.wsr.zone
+  cp /etc/bind/db.127 /etc/bind/demo.wsr.revzone
+
+  nano /etc/bind/demo.wsr.zone
+
+  ;
+  ; BIND data file for local loopback interface
+  ;
+  $TTL    604800
+  @       IN      SOA     isp.demo.wsr. root.demo.wsr. (
+                                2         ; Serial
+                           604800         ; Refresh
+                            86400         ; Retry
+                          2419200         ; Expire
+                           604800 )       ; Negative Cache TTL
+  ;
+  @       IN      NS      isp.demo.wsr.      
+  @       IN      A       3.3.3.1
+  isp     IN      A       3.3.3.1
+  www     IN      A       4.4.4.100
+  www     IN      A       5.5.5.100
+  internet        IN      CNAME   isp
+
+  int.demo.wsr.   IN      NS      srv.int.demo.wsr
+  srv.int.demo.wsr        IN      A       4.4.4.100
+
+
+  nano /etc/bind/demo.wsr.revzone
+
+  ;
+  ; BIND data file for local loopback interface
+  ;
+  $TTL    604800
+  @       IN      SOA     isp.demo.wsr. root.demo.wsr. (
+                                1         ; Serial
+                           604800         ; Refresh
+                            86400         ; Retry
+                          2419200         ; Expire
+                           604800 )       ; Negative Cache TTL
+  ;
+  @       IN      NS      isp.demo.wsr.      
+  1       IN      PTR     isp.demo.wsr.
+
+
+  nano /etc/bind/namded.conf.default-zones
+
+
+  zone "demo.wsr" {
+          type master;
+          file "/etc/bind/demo.wsr.zone";
+  };
+
+  zone "3.3.3.in-addr.arpa" {
+          type master;
+          file "/etc/bind/demo.wsr.revzone";
+  };
+
+  nano /etc/bind/named.conf.options
+
+
+  options {
+          directory "var/cache/bind";
+          dnssec-validation no;
+          recursion yes;
+          listen-on { any; }; 
+  }; 
+
+
+  systemctl restart bind9
+  systemctl status bind9
+
+  Прописать днс самого себя 3.3.3.1 в настройках адаптера Internet
+
+  c) RTR-L 
+
+  firewall-cmd --permanent --add-forward-port=port=53:proto=tcp:toport=53:toaddr=192.168.200.200
+  firewall-cmd --permanent --add-forward-port=port=53:proto=udp:toport=53:toaddr=192.168.200.200
+
+  systemctl restart firewalld
+
+  d) CLI - указать DNS 3.3.3.1
+
+
+7) Chrony
+
+  a) ISP 
+
+  apt install chrony 
+
+  systemctl unmask systemd-timesyncd
+  apt install systemd-timesyncd
+  systemctl disable --now systemd-timesyncd
+  apt install chrony
+  sudo reboot
+
+  date
+  timedatectl set-timezone Asia/Vladivostok
+  timedatectl set-time "(Год-месяц-день) (время в данный момент)"
+  timadatectl
+
+  nano /etc/chrony/chrony.conf
+
+  В самом низу написать
+
+  local stratum 3
+  allow 3.3.3.0/24
+  allow 4.4.4.0/24
+  systemctl restart chrony
+
+  b) CLI
+
+  win+r, gpedit.msc, потом Admin.Templates->System->Windows Time Service->Time provider
+
+  Включить NTP-client Windows
+  Настроить NTP-клиент Windows, 
+
+  NtpServer 3.3.3.1,0х9  
+  Type NTP
+
+  службы - служба времени виндовс (Windows Time) - установить автоматически и запустить
+
+  c) SRV - повторить тоже самое, только включить все 3 компонента
+
+  создать правило в фаерволе на 123 порт
+
+  Для порта, протокол UDP, определенные порты 123, разрешить подключение, профили все, имя NTP
+
+  d) WEB-L, WEB-R, RTR-L, RTR-R
+
+  nano /etc/systemd/timesyncd.conf
+
+  раскомментировать NTP, заменить запись посре равно на ntp.int.demo.wsr
+  раскомментировать RootDistanceMaxSec, заменить число на 30
+
+  systemctl restart systemd-timesyncd
+
+  На CLI и SRV зайти:
+  RU: Панель управления - Часы и регион - Установка даты и времени - Время по интернету - Изменить параметры - 3.3.3.1
+  US: Control Panel - Clock and region - Set the time and date - Internet Time - 3.3.3.1
+
+8) Файловый сервер SMB
+
+  a) WEB-L, WEB-R
+
+  apt install samba
+  apt install cifs-utils
+
+  b) SRV добавить 2 диска по 2 гб 
+
+  Перевести диск в онлайн и инициализировать ПКМ->Online, Initialize Disk
+
+  powershell команды 
+
+  diskpart
+
+  san policy=onlineall
+
+  Затем ПКМ по диску-> New Mirrored Volume, добавить диск из левого столбца в правый, установить букву по заданию (R)
+
+  Дать права на диск ->ПКМ по диску, свойства, доступ, расширенная настройка, установить галочку разрешить общий доступ. Кнопка разрешения - выбрать "все" 
+  и выбрать все разрешения
+
+  Дать правка на диск - ПКм по диску - Properties - Sharing - Advanced sharing - галочку на Share this folder - Premissions - 
+  Выбрать Everyone и все галочки allow
+  
+
+  c) WEB-L, WEB-R
+
+  mkdir /opt/share
+
+  chmod 777 /opt/share
+
+  nano /etc/fstab
+
+  //srv.int.demo.wsr/r /opt/share/ cifs user,rw,username=Administrator,pass=(пароль от SRV) 0 0
+
+  systemctl restart smbd
+
+  reboot
+
+  Проверка - создать в /opt/share файд командой touch 1.txt. Проверить на сетевом диске на SRV.
+
+9) Сертификаты
+
+  а) SRV
+
+  Добавить роль Служюы сертификатов AD
+
+  После установки где флажок нажать настроить службы сертификатов
+
+  RU:
+  Службы ролей - галочка Центр сертификации
+  Вариант установки - автономный Цс
+  Тип ЦС - корневой Цс
+  Закрытый ключ - создать нoвый закрытый ключ
+  Имя оставляем стандартное
+  Срок действия 300 дней
+
+  US: 
+  Role services - Certification Authority
+  Setup type - Standalone CA
+  CA Type - Root CA
+  Private key - create a new private key
+  Имя оставляем стандартное
+  Срок действия 300 дней
+
+
+
+  b) WEB-L
+
+  nano /etc/ssl/openssl.cnf
+
+  В столбце с параметром [ req ] пишем:
+
+  req_extensions = v3_req
+
+  В столбце с параметром [ req_distiguished_name ] заменяем countryName на RU
+
+  В столбце с параметром [ v3_req ] пишем:
+
+  subjectAltName = @alt_names
+
+    иже добавить: 
+
+  [alt_names]
+  DNS.1 = www.demo.wsr
+
+  cd /opt/share - перейти в каталог
+
+  openssl req -nodes -newkey rsa -out csr.req - выдать сертификат
+
+  Будут выдаватьсы поля для ввода, писать только в тех, которые ниже:
+
+  Conunty name - RU
+  Organisation name -  DEMO.WSR
+  Common name -  www.demo.wsr
+
+
+
+  c) SRV
+
+  Ru:
+  Центр сертификации - все задачи - выдать новый запрос - выбрать файл из сетевой папки csr.req
+
+  Затем запросы в ожидании - наш запрос - пкм - все задачи - выдать
+
+  Перейти на выданные сертификаты - открыть 
+
+
+  Состав - копировать в файл - первая кодировака - имя файла web-l и выбрать сохранить на сетеой диск  - далее - готово
+
+  Затем в оснастке сервера сертификации - пкм на сервер - свойства - просмотр сертификатов - соств - копировать в файл 
+  - вторая кодировка - имя CLI и также на сетевой диск
+    
+
+
+  US: 
+  Certification Authority - ПКМ - all Tasks - submit new request - выбрать файл из сетевой папки csr.req
+
+  Pending requests - наш запрос - ПКМ - all Tasks - Issue
+
+  Issued Certificates -наш сертификат - пкм - open
+
+  Details - Copy to file - next - выбрать первую строчку - выбрать сетевой диск и дать имя web-l - далее - готово
+
+  Затем пкм по SRV-CA вверху списка - view certificate - Details - Copy to file - next - выбрать первую строчку 
+  - выбрать сетевой диск и дать имя cli - далее - готово
+
+
+  d) CLI
+
+  powershell
+
+  scp -P 2244 root@4.4.4.100:/opt/share/cli.cer ./desktop - передать с помощью SSH сертификат на рабочий стол
+
+  Установить сертификат, выбрать локальный компьютер, поместиить все сертификаты в следующее хранилище 
+  - доверенные корневые центры сертификации - готово
+
+  Проверить win+r certmgr.msc - доверенные корневые центры сертификации 
+  - должен быть наш сертификат под именем SRV-CA (по умолчанию)
+
+8) IPSEC шифрование?
+
+  а) RTR-L, RTR-R
+
+  apt install strongswan
+
+  systemctl start ipsec
+
+  systemctl enable ipsec
+
+
+  nano /etc/ipsec.conf
+
+  В самом низу написать:
+
+  a-1) RTR-L 
+
+  conn "ipsec"
+          auto=start
+          type=tunnel
+          authby=secret
+          left=4.4.4.100
+          leftprotoport=gre
+          right=5.5.5.100
+          rightprotoport=gre
+
+  nano /etc/ipsec.secrets
+
+  4.4.4.100 5.5.5.100 : PSK "KEYSEC"
+
+  systemctl restart ipsec
+
+a-2) RTR- R
+
+  conn "ipsec"
+          auto=start
+          type=tunnel
+          authby=secret
+          left=5.5.5.100
+          leftprotoport=gre
+          right=4.4.4.100
+          rightprotoport=gre
+
+
+  nano /etc/ipsec.secrets
+
+  5.5.5.100 4.4.4.100 : PSK "KEYSEC"
+
+  systemctl restart ipsec
+
+  Проверка - ipsec status. Может понадобиться перезагрузка.
+
+
+9) Docker
+
+  a) WEB-L, WEB-R
+
+  apt install lynx nginx -y
+
+  nginx - t - команда для проверки на ошибки в файле
+
+  mkdir /opt/docker - создать каталог
+
+  mount /dev/cdrom /mnt/ - примонтировать диск
+
+  cp /mnt/* /opt/docker/ - скопировать все в каталог
+
+  cd /opt/docker - перейти в каталог
+  ls
+
+  tar -xvf appdocker0.tar.gz - распаковка из tar
+
+  umount /mnt - отмонтировать диск
+
+  dpkg -i containerd* - установить контейнер
+  dpkg -i docker-* - установить докер
+
+  dokcer info - информация о установленном докере
+  dokcer version - версия докера
+
+  docker image load -i appdocker0.zip - распаковать архив
+
+  docker image ls - просмотреть содержимое
+
+  docker run -d appdocker0 - запустить контейнер
+
+  docker ps - узнать имя контейнера
+
+  docker container inspect "имя контейнера в столбце NAMES" - просмотр содержимого
+
+  Проверяем командой lynx http://ip-address:port      http://172.17.0.2:5000
+
+
+  ls -l /etc/nginx/
+  ls -l /etc/nginx/sites-enabled
+
+  mv /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/webapp.conf - создать и переместить файл
+
+  nano /etc/nginx/sites-enabled/webapp.conf 
+
+
+  Закомментировать строчки:
+  1. listen [::]:80 default_server
+  2. root /var/www/html
+  3. index index.html 
+
+  Ниже в server_name дописать www.demo.wsr чтобы получилось server_name www.demo.wsr;
+
+  строчку try_files заменить на proxy_pass http://ip-address:port; (http://172.17.0.2:5000)
+
+  nginx - t
+
+  systemctl restart nginx.service 
+
+  Проверить lynx http://localhost, http://localhost/get, http://localhost/health
+  
+  b) RTR-L
+
+  firewall-cmd --permanent --add-forward-port=port=80:proto=tcp:toport=80:toaddr=192.168.200.100
+
+  systemctl restart firewalld
+
+  Проверить на CLI www.demo.wsr
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
